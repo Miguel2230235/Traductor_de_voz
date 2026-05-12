@@ -1,0 +1,192 @@
+import random
+import sounddevice as sd
+import scipy.io.wavfile as wav
+import speech_recognition as sr
+from googletrans import Translator
+
+# =========================
+# DICCIONARIO DE PALABRAS
+# =========================
+
+words_by_level = {
+    "facil": {
+        "gato": "cat",
+        "perro": "dog",
+        "manzana": "apple",
+        "leche": "milk",
+        "sol": "sun"
+    },
+
+    "medio": {
+        "banano": "banana",
+        "escuela": "school",
+        "amigo": "friend",
+        "ventana": "window",
+        "amarillo": "yellow"
+    },
+
+    "dificil": {
+        "tecnologia": "technology",
+        "universidad": "university",
+        "informacion": "information",
+        "pronunciacion": "pronunciation",
+        "imaginacion": "imagination"
+    }
+}
+
+# =========================
+# PANTALLA INICIAL
+# =========================
+
+print("====================================")
+print("🎮 WELCOME TO VOICE TRANSLATOR GAME")
+print("====================================")
+print("📢 Pronuncia la traducción en inglés")
+print("❌ Pierdes después de 3 errores")
+print("⭐ Gana puntos por respuestas correctas")
+print("====================================\n")
+
+# =========================
+# SELECCIÓN DE DIFICULTAD
+# =========================
+
+print("🎯 Selecciona dificultad:")
+print("1. Fácil")
+print("2. Medio")
+print("3. Difícil")
+
+option = input("\n👉 Elige una opción: ")
+
+if option == "1":
+    level = "facil"
+
+elif option == "2":
+    level = "medio"
+
+elif option == "3":
+    level = "dificil"
+
+else:
+    print("❌ Opción inválida")
+    exit()
+
+# =========================
+# VARIABLES DEL JUEGO
+# =========================
+
+score = 0
+mistakes = 0
+
+recognizer = sr.Recognizer()
+translator = Translator()
+
+# =========================
+# BUCLE PRINCIPAL
+# =========================
+
+while mistakes < 3:
+
+    # Elegir palabra aleatoria
+    spanish_word = random.choice(
+        list(words_by_level[level].keys())
+    )
+
+    correct_translation = words_by_level[level][spanish_word]
+
+    print("\n==============================")
+    print(f"📘 Traduce esta palabra: {spanish_word}")
+    print("==============================")
+
+    input("🎤 Presiona ENTER y habla...")
+
+    # =========================
+    # GRABAR AUDIO
+    # =========================
+
+    duration = 4
+    sample_rate = 44100
+
+    print("🔴 Grabando...")
+
+    recording = sd.rec(
+        int(duration * sample_rate),
+        samplerate=sample_rate,
+        channels=1,
+        dtype="int16"
+    )
+
+    sd.wait()
+
+    wav.write("voice.wav", sample_rate, recording)
+
+    print("✅ Audio grabado")
+
+    # =========================
+    # RECONOCIMIENTO DE VOZ
+    # =========================
+
+    with sr.AudioFile("voice.wav") as source:
+        audio = recognizer.record(source)
+
+    try:
+
+        recognized = recognizer.recognize_google(
+            audio,
+            language="en-US"
+        )
+
+        recognized = recognized.lower()
+
+        print(f"🗣 Dijiste: {recognized}")
+
+        # =========================
+        # COMPARAR RESPUESTA
+        # =========================
+
+        if recognized == correct_translation:
+
+            print("✅ ¡Correcto!")
+            score += 10
+
+        else:
+
+            print("❌ Incorrecto")
+            print(f"💡 Respuesta correcta: {correct_translation}")
+
+            mistakes += 1
+
+        # =========================
+        # MOSTRAR PUNTOS
+        # =========================
+
+        print(f"\n⭐ Puntos: {score}")
+        print(f"⚠ Errores: {mistakes}/3")
+
+    except sr.UnknownValueError:
+
+        print("❌ No se entendió el audio")
+        mistakes += 1
+
+    except sr.RequestError as e:
+
+        print("⚠ Error del servicio:", e)
+
+# =========================
+# FIN DEL JUEGO
+# =========================
+
+print("\n================================")
+print("💀 GAME OVER")
+print("================================")
+print(f"🏆 Puntuación final: {score}")
+
+if score >= 50:
+    print("🔥 ¡Excelente trabajo!")
+
+elif score >= 20:
+    print("👏 ¡Buen intento!")
+
+else:
+    print("📚 Sigue practicando inglés")
+
+print("================================")
