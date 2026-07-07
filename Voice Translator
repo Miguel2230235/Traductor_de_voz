@@ -1,192 +1,169 @@
 import random
+
 import sounddevice as sd
 import scipy.io.wavfile as wav
 import speech_recognition as sr
-from googletrans import Translator
 
-# =========================
-# DICCIONARIO DE PALABRAS
-# =========================
-
-words_by_level = {
+PALABRAS_POR_NIVEL = {
     "facil": {
         "gato": "cat",
         "perro": "dog",
         "manzana": "apple",
         "leche": "milk",
-        "sol": "sun"
+        "sol": "sun",
     },
-
     "medio": {
         "banano": "banana",
         "escuela": "school",
         "amigo": "friend",
         "ventana": "window",
-        "amarillo": "yellow"
+        "amarillo": "yellow",
     },
-
     "dificil": {
         "tecnologia": "technology",
         "universidad": "university",
         "informacion": "information",
         "pronunciacion": "pronunciation",
-        "imaginacion": "imagination"
-    }
+        "imaginacion": "imagination",
+    },
 }
 
-# =========================
-# PANTALLA INICIAL
-# =========================
+MAX_ERRORES = 3
+PUNTOS_POR_ACIERTO = 10
+PUNTAJE_EXCELENTE = 50
+PUNTAJE_BUENO = 20
 
-print("====================================")
-print("🎮 WELCOME TO VOICE TRANSLATOR GAME")
-print("====================================")
-print("📢 Pronuncia la traducción en inglés")
-print("❌ Pierdes después de 3 errores")
-print("⭐ Gana puntos por respuestas correctas")
-print("====================================\n")
+DURACION_GRABACION_SEGUNDOS = 4
+FRECUENCIA_MUESTREO = 44100
+ARCHIVO_AUDIO_TEMPORAL = "voice.wav"
 
-# =========================
-# SELECCIÓN DE DIFICULTAD
-# =========================
 
-print("🎯 Selecciona dificultad:")
-print("1. Fácil")
-print("2. Medio")
-print("3. Difícil")
+def mostrar_bienvenida():
+    print("====================================")
+    print("🎮 WELCOME TO VOICE TRANSLATOR GAME")
+    print("====================================")
+    print("📢 Pronuncia la traducción en inglés")
+    print("❌ Pierdes después de 3 errores")
+    print("⭐ Gana puntos por respuestas correctas")
+    print("====================================\n")
 
-option = input("\n👉 Elige una opción: ")
 
-if option == "1":
-    level = "facil"
+def seleccionar_nivel():
+    print("🎯 Selecciona dificultad:")
+    print("1. Fácil")
+    print("2. Medio")
+    print("3. Difícil")
 
-elif option == "2":
-    level = "medio"
+    opcion = input("\n👉 Elige una opción: ")
+    niveles_por_opcion = {"1": "facil", "2": "medio", "3": "dificil"}
 
-elif option == "3":
-    level = "dificil"
+    return niveles_por_opcion.get(opcion)
 
-else:
-    print("❌ Opción inválida")
-    exit()
 
-# =========================
-# VARIABLES DEL JUEGO
-# =========================
+def elegir_palabra(nivel):
+    palabra_espanol = random.choice(list(PALABRAS_POR_NIVEL[nivel].keys()))
+    traduccion_correcta = PALABRAS_POR_NIVEL[nivel][palabra_espanol]
+    return palabra_espanol, traduccion_correcta
 
-score = 0
-mistakes = 0
 
-recognizer = sr.Recognizer()
-translator = Translator()
+def grabar_audio(archivo_destino):
+    print("🔴 Grabando...")
 
-# =========================
-# BUCLE PRINCIPAL
-# =========================
-
-while mistakes < 3:
-
-    # Elegir palabra aleatoria
-    spanish_word = random.choice(
-        list(words_by_level[level].keys())
+    grabacion = sd.rec(
+        int(DURACION_GRABACION_SEGUNDOS * FRECUENCIA_MUESTREO),
+        samplerate=FRECUENCIA_MUESTREO,
+        channels=1,
+        dtype="int16",
     )
+    sd.wait()
 
-    correct_translation = words_by_level[level][spanish_word]
+    wav.write(archivo_destino, FRECUENCIA_MUESTREO, grabacion)
+    print("✅ Audio grabado")
+
+
+def reconocer_audio(reconocedor, archivo):
+    with sr.AudioFile(archivo) as fuente:
+        audio = reconocedor.record(fuente)
+
+    return reconocedor.recognize_google(audio, language="en-US").lower()
+
+
+def jugar_ronda(reconocedor, nivel, puntaje):
+    """
+    Juega una ronda y retorna (puntaje_actualizado, hubo_error).
+    """
+    palabra_espanol, traduccion_correcta = elegir_palabra(nivel)
 
     print("\n==============================")
-    print(f"📘 Traduce esta palabra: {spanish_word}")
+    print(f"📘 Traduce esta palabra: {palabra_espanol}")
     print("==============================")
 
     input("🎤 Presiona ENTER y habla...")
-
-    # =========================
-    # GRABAR AUDIO
-    # =========================
-
-    duration = 4
-    sample_rate = 44100
-
-    print("🔴 Grabando...")
-
-    recording = sd.rec(
-        int(duration * sample_rate),
-        samplerate=sample_rate,
-        channels=1,
-        dtype="int16"
-    )
-
-    sd.wait()
-
-    wav.write("voice.wav", sample_rate, recording)
-
-    print("✅ Audio grabado")
-
-    # =========================
-    # RECONOCIMIENTO DE VOZ
-    # =========================
-
-    with sr.AudioFile("voice.wav") as source:
-        audio = recognizer.record(source)
+    grabar_audio(ARCHIVO_AUDIO_TEMPORAL)
 
     try:
+        reconocido = reconocer_audio(reconocedor, ARCHIVO_AUDIO_TEMPORAL)
+        print(f"🗣 Dijiste: {reconocido}")
 
-        recognized = recognizer.recognize_google(
-            audio,
-            language="en-US"
-        )
-
-        recognized = recognized.lower()
-
-        print(f"🗣 Dijiste: {recognized}")
-
-        # =========================
-        # COMPARAR RESPUESTA
-        # =========================
-
-        if recognized == correct_translation:
-
+        if reconocido == traduccion_correcta:
             print("✅ ¡Correcto!")
-            score += 10
-
+            puntaje += PUNTOS_POR_ACIERTO
+            hubo_error = False
         else:
-
             print("❌ Incorrecto")
-            print(f"💡 Respuesta correcta: {correct_translation}")
+            print(f"💡 Respuesta correcta: {traduccion_correcta}")
+            hubo_error = True
 
-            mistakes += 1
-
-        # =========================
-        # MOSTRAR PUNTOS
-        # =========================
-
-        print(f"\n⭐ Puntos: {score}")
-        print(f"⚠ Errores: {mistakes}/3")
+        print(f"\n⭐ Puntos: {puntaje}")
+        return puntaje, hubo_error
 
     except sr.UnknownValueError:
-
         print("❌ No se entendió el audio")
-        mistakes += 1
+        return puntaje, True
 
-    except sr.RequestError as e:
+    except sr.RequestError as error:
+        print("⚠ Error del servicio:", error)
+        return puntaje, False
 
-        print("⚠ Error del servicio:", e)
 
-# =========================
-# FIN DEL JUEGO
-# =========================
+def mostrar_resultado_final(puntaje):
+    print("\n================================")
+    print("💀 GAME OVER")
+    print("================================")
+    print(f"🏆 Puntuación final: {puntaje}")
 
-print("\n================================")
-print("💀 GAME OVER")
-print("================================")
-print(f"🏆 Puntuación final: {score}")
+    if puntaje >= PUNTAJE_EXCELENTE:
+        print("🔥 ¡Excelente trabajo!")
+    elif puntaje >= PUNTAJE_BUENO:
+        print("👏 ¡Buen intento!")
+    else:
+        print("📚 Sigue practicando inglés")
 
-if score >= 50:
-    print("🔥 ¡Excelente trabajo!")
+    print("================================")
 
-elif score >= 20:
-    print("👏 ¡Buen intento!")
 
-else:
-    print("📚 Sigue practicando inglés")
+def main():
+    mostrar_bienvenida()
+    nivel = seleccionar_nivel()
 
-print("================================")
+    if nivel is None:
+        print("❌ Opción inválida")
+        return
+
+    reconocedor = sr.Recognizer()
+    puntaje = 0
+    errores = 0
+
+    while errores < MAX_ERRORES:
+        puntaje, hubo_error = jugar_ronda(reconocedor, nivel, puntaje)
+
+        if hubo_error:
+            errores += 1
+
+        print(f"⚠ Errores: {errores}/{MAX_ERRORES}")
+
+    mostrar_resultado_final(puntaje)
+
+
+if __name__ == "__main__":
+    main()
